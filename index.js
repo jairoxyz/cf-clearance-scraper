@@ -1,6 +1,6 @@
 const express = require('express'),
     app = express(),
-    port = process.env.PORT || 3000,
+    port = process.env.PORT || 3001
     bodyParser = require('body-parser'),
     authToken = process.env.authToken || null,
     scrape = require('./module/scrape'),
@@ -15,7 +15,7 @@ app.use(bodyParser.json({ limit: '50mb' }))
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))
 app.use(cors())
 
-app.listen(port, () => { console.log(`Server running on port ${port}`) })
+app.listen(port, () => { console.log(`Server running on port ${port} on arch ${process.arch}`) })
 
 app.post('/cf-clearance-scraper', async (req, res) => {
 

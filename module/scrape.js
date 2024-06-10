@@ -90,7 +90,7 @@ const scrape = async ({ proxy = {},
             });
 
             await page.goto(url, {
-                waitUntil: ['load', 'networkidle0']
+                waitUntil: url.includes('apnetv.to') ? ['domcontentloaded'] : ['load', 'networkidle0']
             })
 
             if (mode == 'captcha') return

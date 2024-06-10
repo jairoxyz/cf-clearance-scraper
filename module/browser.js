@@ -90,6 +90,8 @@ const main = async ({
 
         const browser = await puppeteer.launch({
             headless: false,
+            executablePath: (process.arch == 'arm64' ? '/usr/bin/chromium' : undefined),
+            //executablePath: '/usr/bin/chromium',
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -110,6 +112,19 @@ const main = async ({
         if (proxy.username && proxy.password) await page.authenticate({ username: proxy.username, password: proxy.password });
 
         if (agent) await page.setUserAgent(agent);
+
+        const { RequestInterceptionManager } = await import('puppeteer-intercept-and-modify-requests')
+        const client = await page.target().createCDPSession()
+        const interceptManager = new RequestInterceptionManager(client)
+        await interceptManager.intercept({
+            urlPattern: `https://apnetv.to/Hindi-Serials`,
+            resourceType: "Document",
+            modifyResponse({ body }) {
+                return {
+                        body: body.replace(`window.location.href = 'https://apnetv.to/indexnow.html';`,''),
+                };
+            },
+            });
       
         browser.on('disconnected', async () => {
             try { xvfbsession.stopSync(); } catch (err) { }

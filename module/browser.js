@@ -7,6 +7,7 @@ const main = async ({
         const { connect } = await import('puppeteer-real-browser')
 
         const { browser, page } = await connect({
+            customConfig: {executablePath: (process.arch == 'arm64' ? '/usr/bin/chromium' : undefined)},
             turnstile: true,
             proxy
         })

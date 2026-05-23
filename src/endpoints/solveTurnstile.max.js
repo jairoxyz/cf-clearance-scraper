@@ -18,7 +18,7 @@ function solveTurnstileMin({ url, proxy }) {
         await context.close();
         reject("Timeout Error");
       }
-    }, global.timeOut || 60000);
+    }, global.timeOut || 30000);
 
     try {
       const page = await context.newPage();
@@ -52,7 +52,7 @@ function solveTurnstileMin({ url, proxy }) {
       });
 
       await page.waitForSelector('[name="cf-response"]', {
-        timeout: 60000,
+        timeout: 30000,
       });
       const token = await page.evaluate(() => {
         try {

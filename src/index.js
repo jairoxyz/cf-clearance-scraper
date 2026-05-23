@@ -1,14 +1,15 @@
 const express = require('express')
 const app = express()
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 3001
 const bodyParser = require('body-parser')
 const authToken = process.env.authToken || null
 const cors = require('cors')
 const reqValidate = require('./module/reqValidate')
 
+
 global.browserLength = 0
 global.browserLimit = Number(process.env.browserLimit) || 20
-global.timeOut = Number(process.env.timeOut || 60000)
+global.timeOut = Number(process.env.timeOut || 30000)
 
 app.use(bodyParser.json({}))
 app.use(bodyParser.urlencoded({ extended: true }))
@@ -19,12 +20,14 @@ if (process.env.NODE_ENV !== 'development') {
         server.timeout = global.timeOut
     } catch (e) { }
 }
-if (process.env.SKIP_LAUNCH != 'true') require('./module/createBrowser')
+//if (process.env.SKIP_LAUNCH != 'true') require('./module/createBrowser')
+if (process.env.SKIP_LAUNCH != 'true') require('./module/createCloakBrowser')
 
 const getSource = require('./endpoints/getSource')
 const solveTurnstileMin = require('./endpoints/solveTurnstile.min')
 const solveTurnstileMax = require('./endpoints/solveTurnstile.max')
 const wafSession = require('./endpoints/wafSession')
+const clickSolver = require('./endpoints/clickSolver')
 
 
 app.post('/cf-clearance-scraper', async (req, res) => {
@@ -57,6 +60,9 @@ app.post('/cf-clearance-scraper', async (req, res) => {
             break;
         case "waf-session":
             result = await wafSession(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+            break;
+        case "click-solver":
+            result = await clickSolver(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
             break;
     }
 

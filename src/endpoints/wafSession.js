@@ -28,7 +28,7 @@ function getSource({ url, proxy }) {
         await context.close();
         reject("Timeout Error");
       }
-    }, global.timeOut || 60000);
+    }, global.timeOut || 30000);
 
     try {
       const page = await context.newPage();

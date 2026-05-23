@@ -1,6 +1,3 @@
-> [!WARNING]
-> This repo will no longer receive updates. Thank you to everyone who supported it.
-
 # CF Clearance Scraper
 
 This library was created for testing and training purposes to retrieve the page source of websites, create Cloudflare Turnstile tokens and create Cloudflare WAF sessions.
@@ -9,9 +6,8 @@ Cloudflare protection not only checks cookies in the request. It also checks var
 
 Cookies with cf in the name belong to Cloudflare. You can find out what these cookies do and how long they are valid by **[Clicking Here](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/)**.
 
-## Sponsor
+In this feature branch puppeteer-real-browser and rebrowser-core were replaced with **https://github.com/CloakHQ/CloakBrowser** and a click solver for interstitial challenges was added.
 
-[![ScrapeDo](src/data/sdo.gif)](https://scrape.do/?utm_source=github&utm_medium=repo_ccs)
 
 ## Installation
 
@@ -22,7 +18,7 @@ Installation with Docker is recommended.
 Please make sure you have installed the latest image. If you get an error, try downloading the latest version by going to Docker Hub.
 
 ```bash
-sudo docker rmi zfcsoftware/cf-clearance-scraper:latest --force
+sudo docker rmi jairoxyz/cf-clearance-scraper-cb:latest --force
 ```
 
 ```bash
@@ -30,17 +26,19 @@ docker run -d -p 3000:3000 \
 -e PORT=3000 \
 -e browserLimit=20 \
 -e timeOut=60000 \
-zfcsoftware/cf-clearance-scraper:latest
+jairoxyz/cf-clearance-scraper-cb:latest
 ```
 
 **Github**
 
 ```bash
-git clone https://github.com/zfcsoftware/cf-clearance-scraper
+git clone https://github.com/jairoxyz/cf-clearance-scraper.git
 cd cf-clearance-scraper
+git checkout feature/cloakbrowser
 npm install
 npm run start
 ```
+
 
 ## Create Cloudflare WAF Session
 
@@ -99,8 +97,8 @@ fetch('http://localhost:3000/cf-clearance-scraper', {
         'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-        url: 'https://turnstile.zeroclover.io/',
-        siteKey: "0x4AAAAAAAEwzhD6pyKkgXC0",
+        url: 'https://developers.cloudflare.com/turnstile/troubleshooting/testing/',
+        siteKey: "1x00000000000000000000BB",
         mode: "turnstile-min",
         // proxy:{
         //     host: '127.0.0.1',
@@ -165,6 +163,16 @@ fetch('http://localhost:3000/cf-clearance-scraper', {
     .then(res => res.json())
     .then(console.log)
     .catch(console.log);
+```
+
+
+## Use click solver for interstitial challenges
+```bash
+curl -L -X POST 'http://localhost:3001/cf-clearance-scraper' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{"mode": "click-solver", \
+                "url": "https://nopecha.com/demo/cloudflare"}'
+
 ```
 
 ## Quick Questions and Answers

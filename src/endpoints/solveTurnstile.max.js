@@ -20,6 +20,8 @@ function solveTurnstileMin({ url, proxy }) {
       }
     }, global.timeOut || 30000);
 
+    console.log(`[app] request received for ${url} ...`)
+
     try {
       const page = await context.newPage();
 

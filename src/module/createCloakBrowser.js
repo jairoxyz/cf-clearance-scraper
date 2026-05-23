@@ -1,23 +1,21 @@
 'use strict';
 
 const { ensureAndPruneCloakbrowserCache } = require('./cloakbrowserCache');
+const Xvfb = require('xvfb');
 
 let _launch;
 async function getLaunch() {
   if (!_launch) ({ launch: _launch } = await import('cloakbrowser/puppeteer'));
   return _launch;
 }
-const Xvfb = require('xvfb');
 
-// Module-level Xvfb session (one per process, shared across reconnects).
+// ---------- XVFB (headed Linux) ----------
 let xvfbSession = null;
-
 function startXvfbIfNeeded() {
   if (process.platform !== 'linux') return;
   if (xvfbSession) return;
 
   process.env.DISPLAY = process.env.DISPLAY || ':99';
-
   try {
     xvfbSession = new Xvfb({
       silent: true,
@@ -33,89 +31,152 @@ function startXvfbIfNeeded() {
 
 function stopXvfb() {
   if (!xvfbSession) return;
+  try { xvfbSession.stopSync(); } catch (_) {}
+  xvfbSession = null;
+  console.log('[XVFB] Stopped');
+}
+
+// ---------- One-time cache prep ----------
+let prepared = false;
+async function prepareOnce() {
+  if (prepared) return;
+  prepared = true;
   try {
-    xvfbSession.stopSync();
-    console.log('[XVFB] Stopped');
-  } catch (err) {
-    console.error('[XVFB] Stop error:', err?.message || err);
-  } finally {
-    xvfbSession = null;
+    await ensureAndPruneCloakbrowserCache({ syncUpdateAtStartup: true });
+  } catch (e) {
+    console.warn('[Cloakbrowser] cache prune skipped:', e?.message || e);
   }
 }
 
-// Call once the solution has been returned to the client.
-async function closeBrowser() {
-  if (global.browser) {
-    try { await global.browser.close(); } catch (_) {}
-    global.browser = null;
+// ---------- Simple concurrency limiter ----------
+function createLimiter(getLimit) {
+  let running = 0;
+  const queue = [];
+
+  async function acquire() {
+    const limit = Math.max(1, Number(getLimit?.() ?? 1));
+    if (running < limit) {
+      running++;
+      return () => release();
+    }
+    return new Promise((resolve) => {
+      queue.push(() => {
+        running++;
+        resolve(() => release());
+      });
+    });
   }
+
+  function release() {
+    running = Math.max(0, running - 1);
+    const next = queue.shift();
+    if (next) next();
+  }
+
+  function stats() {
+    return { running, queued: queue.length };
+  }
+
+  return { acquire, stats };
+}
+
+function normalizeProxyServer(proxyServer) {
+  if (!proxyServer) return null;
+  return proxyServer.includes('://') ? proxyServer : `http://${proxyServer}`;
+}
+
+/**
+ * createBrowserFacade({ getLimit, onInc, onDec, getCount })
+ *
+ * Exposes a compatible createBrowserContext(options) method so existing code can keep:
+ *   await global.browser.createBrowserContext({ proxyServer })
+ *   ...
+ *   await context.close()
+ *
+ * In Puppeteer, BrowserContext is closeable for non-default contexts. 【2-1370ea】【1-64e0a7】
+ */
+function createBrowserFacade(hooks = {}) {
+  const limiter = createLimiter(hooks.getLimit);
+
+  return {
+    async createBrowserContext(options = {}) {
+      //await prepareOnce();
+      startXvfbIfNeeded();
+
+      // enforce browserLimit
+      const releaseSlot = await limiter.acquire();
+
+      // increment your counters
+      try { hooks.onInc?.(); } catch (_) {}
+
+      const launch = await getLaunch();
+
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--enable-blink-features=FakeShadowRoot',
+      ];
+
+      const proxyServer = normalizeProxyServer(options.proxyServer);
+      if (proxyServer) {
+        // Chromium proxy configured via command-line flag --proxy-server 【3-981f4f】
+        args.push(`--proxy-server=${proxyServer}`);
+      }
+
+      let browser;
+      let context;
+
+      try {
+        browser = await launch({
+          headless: false,
+          humanize: true,
+          humanPreset: 'careful',
+          args,
+        });
+
+        context = await browser.createBrowserContext(); // non-default context 【2-1370ea】
+
+        // Patch context.close() to also close the owning browser + update counters + release slot
+        const originalClose = context.close.bind(context);
+        let done = false;
+
+        context.close = async (...closeArgs) => {
+          if (done) return;
+          done = true;
+          try { await originalClose(...closeArgs); } catch (_) {}
+          try { await browser.close(); } catch (_) {}
+
+          try { hooks.onDec?.(); } catch (_) {}
+          releaseSlot();
+        };
+
+        return context;
+      } catch (err) {
+        // If we failed before returning context, cleanup and release slot/counter
+        try { if (context) await context.close(); } catch (_) {}
+        try { if (browser) await browser.close(); } catch (_) {}
+
+        try { hooks.onDec?.(); } catch (_) {}
+        releaseSlot();
+
+        throw err;
+      }
+    },
+
+    // Optional: expose stats if you ever want to log
+    _stats() {
+      return {
+        limiter: limiter.stats(),
+        browserLength: hooks.getCount?.(),
+        browserLimit: hooks.getLimit?.(),
+      };
+    },
+  };
+}
+
+async function shutdown() {
   stopXvfb();
 }
 
-
-async function createBrowser() {
-
-  
-  // Clean CloakBrowser cache once at service start:
-  // ensureBinary() guarantees effective binary exists; binaryInfo() tells which version; prune others. 
-  try {    
-    await ensureAndPruneCloakbrowserCache({ syncUpdateAtStartup: true });
-  } catch (e) {
-    console.warn('[createBrowser] cache prune skipped:', e?.message || e);
-  }
-
-  const launch = await getLaunch();
-
-  startXvfbIfNeeded();
-
-  let attempt = 0;
-  while (!global.finished) {
-    attempt += 1;
-    try {
-      // Close any stale instance
-      if (global.browser) {
-        try { await global.browser.close(); } catch (_) {}
-        global.browser = null;
-      }
-
-      const browser = await launch({
-        headless: false,
-        humanize: true,
-        humanPreset: 'careful',
-        //geoip: true,        
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--enable-blink-features=FakeShadowRoot',
-          // optional stability flags:
-          //'--disable-gpu',
-        ],
-      });
-
-      global.browser = browser;
-
-      browser.once('disconnected', () => {
-        if (global.finished) return;
-        console.warn('[createBrowser] Browser disconnected; will relaunch');
-        // Let loop relaunch; don’t recurse
-        global.browser = null;
-      });
-
-      console.log('[createBrowser] Browser ready');
-      return; // browser running; exit createBrowser()
-    } catch (err) {
-      console.error('[createBrowser] Launch error:', err?.message || err);
-      global.browser = null;
-
-      // backoff (cap it)
-      const delay = Math.min(3000 * attempt, 15000);
-      await new Promise(r => setTimeout(r, delay));
-    }
-  }
-}
-
-
-createBrowser();
-
-module.exports = { closeBrowser };
+module.exports = { createBrowserFacade, prepareOnce, shutdown };

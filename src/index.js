@@ -14,63 +14,94 @@ global.timeOut = Number(process.env.timeOut || 30000)
 app.use(bodyParser.json({}))
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(cors())
-if (process.env.NODE_ENV !== 'development') {
-    let server = app.listen(port, () => { console.log(`Server running on port ${port}`) })
-    try {
-        server.timeout = global.timeOut
-    } catch (e) { }
-}
+
 //if (process.env.SKIP_LAUNCH != 'true') require('./module/createBrowser')
-if (process.env.SKIP_LAUNCH != 'true') require('./module/createCloakBrowser')
+//if (process.env.SKIP_LAUNCH != 'true') require('./module/createCloakBrowser')
+const { createBrowserFacade, prepareOnce, shutdown } = require('./module/createCloakBrowser');
 
-const getSource = require('./endpoints/getSource')
-const solveTurnstileMin = require('./endpoints/solveTurnstile.min')
-const solveTurnstileMax = require('./endpoints/solveTurnstile.max')
-const wafSession = require('./endpoints/wafSession')
-const clickSolver = require('./endpoints/clickSolver')
+(async () => {
+    console.log('[app] starting up ...');
+    // Create the facade once at startup (NO browser window opens now)
+    global.browser = createBrowserFacade({
+    getLimit: () => global.browserLimit,
+    onInc: () => { global.browserLength += 1; },
+    onDec: () => { global.browserLength = Math.max(0, global.browserLength - 1); },
+    getCount: () => global.browserLength,
+    });
 
+    const getSource = require('./endpoints/getSource')
+    const solveTurnstileMin = require('./endpoints/solveTurnstile.min')
+    const solveTurnstileMax = require('./endpoints/solveTurnstile.max')
+    const wafSession = require('./endpoints/wafSession')
+    const clickSolver = require('./endpoints/clickSolver')
 
-app.post('/cf-clearance-scraper', async (req, res) => {
+    // check for updates and download cloakbrowser once at startup
+    console.log('[app] preparing Cloakbrowser ...');
+    await prepareOnce();
 
-    const data = req.body
-
-    const check = reqValidate(data)
-
-    if (check !== true) return res.status(400).json({ code: 400, message: 'Bad Request', schema: check })
-
-    if (authToken && data.authToken !== authToken) return res.status(401).json({ code: 401, message: 'Unauthorized' })
-
-    if (global.browserLength >= global.browserLimit) return res.status(429).json({ code: 429, message: 'Too Many Requests' })
-
-    if (process.env.SKIP_LAUNCH != 'true' && !global.browser) return res.status(500).json({ code: 500, message: 'The scanner is not ready yet. Please try again a little later.' })
-
-    var result = { code: 500 }
-
-    global.browserLength++
-
-    switch (data.mode) {
-        case "source":
-            result = await getSource(data).then(res => { return { source: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
-            break;
-        case "turnstile-min":
-            result = await solveTurnstileMin(data).then(res => { return { token: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
-            break;
-        case "turnstile-max":
-            result = await solveTurnstileMax(data).then(res => { return { token: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
-            break;
-        case "waf-session":
-            result = await wafSession(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
-            break;
-        case "click-solver":
-            result = await clickSolver(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
-            break;
+    if (process.env.NODE_ENV !== 'development') {
+        let server = app.listen(port, () => { console.log(`[app] service running on port ${port}`) })
+        try {
+            server.timeout = global.timeOut
+        } catch (e) { }
     }
 
-    global.browserLength--
+    app.post('/cf-clearance-scraper', async (req, res) => {
 
-    res.status(result.code ?? 500).send(result)
-})
+        const data = req.body
 
-app.use((req, res) => { res.status(404).json({ code: 404, message: 'Not Found' }) })
+        const check = reqValidate(data)
 
-if (process.env.NODE_ENV == 'development') module.exports = app
+        if (check !== true) return res.status(400).json({ code: 400, message: 'Bad Request', schema: check })
+
+        if (authToken && data.authToken !== authToken) return res.status(401).json({ code: 401, message: 'Unauthorized' })
+
+        if (global.browserLength >= global.browserLimit) return res.status(429).json({ code: 429, message: 'Too Many Requests' })
+
+        if (process.env.SKIP_LAUNCH != 'true' && !global.browser) return res.status(500).json({ code: 500, message: 'The scanner is not ready yet. Please try again a little later.' })
+
+        var result = { code: 500 }
+
+        // handled in createBrowserFacade
+        //global.browserLength++
+
+        switch (data.mode) {
+            case "source":
+                result = await getSource(data).then(res => { return { source: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+            case "turnstile-min":
+                result = await solveTurnstileMin(data).then(res => { return { token: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+            case "turnstile-max":
+                result = await solveTurnstileMax(data).then(res => { return { token: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+            case "waf-session":
+                result = await wafSession(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+            case "click-solver":
+                result = await clickSolver(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+        }
+
+        global.browserLength--
+
+        res.status(result.code ?? 500).send(result)
+    })
+
+    app.use((req, res) => { res.status(404).json({ code: 404, message: 'Not Found' }) })
+
+    if (process.env.NODE_ENV == 'development') module.exports = app
+})();
+
+// graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('[app] SIGINT received, shutting down ...');
+  await shutdown();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('[app] SIGTERM received, shutting down ...');
+  await shutdown();
+  process.exit(0);
+});

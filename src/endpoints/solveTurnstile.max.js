@@ -20,7 +20,7 @@ function solveTurnstileMin({ url, proxy }) {
       }
     }, global.timeOut || 30000);
 
-    console.log(`[app] request received for ${url} ...`)
+    console.log(`[app] Request received for ${url} ...`)
 
     try {
       const page = await context.newPage();
@@ -64,16 +64,17 @@ function solveTurnstileMin({ url, proxy }) {
         }
       });
       isResolved = true;
-      clearInterval(cl);
+      clearTimeout(cl);
       await context.close();
       if (!token || token.length < 10) return reject("Failed to get token");
+      console.log("[solveTurnstileMax] Token solved successfully.");
       return resolve(token);
     } catch (e) {
       console.log(e);
 
       if (!isResolved) {
         await context.close();
-        clearInterval(cl);
+        clearTimeout(cl);
         reject(e.message);
       }
     }

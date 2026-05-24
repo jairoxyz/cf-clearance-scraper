@@ -17,8 +17,8 @@ function getSource({ url, proxy }) {
       }
     }, global.timeOut || 30000);
 
-    console.log(`[app] request received for ${url} ...`)
-    
+    console.log(`[app] Request received for ${url} ...`)
+
     try {
       const page = await context.newPage();
 
@@ -42,7 +42,7 @@ function getSource({ url, proxy }) {
             const html = await page.content();
             await context.close();
             isResolved = true;
-            clearInterval(cl);
+            clearTimeout(cl);
             resolve(html);
           }
         } catch (e) {}
@@ -53,7 +53,7 @@ function getSource({ url, proxy }) {
     } catch (e) {
       if (!isResolved) {
         await context.close();
-        clearInterval(cl);
+        clearTimeout(cl);
         reject(e.message);
       }
     }

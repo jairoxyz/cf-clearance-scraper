@@ -17,16 +17,18 @@ app.use(cors())
 
 //if (process.env.SKIP_LAUNCH != 'true') require('./module/createBrowser')
 //if (process.env.SKIP_LAUNCH != 'true') require('./module/createCloakBrowser')
-const { createBrowserFacade, prepareOnce, shutdown } = require('./module/createCloakBrowser');
+const { createBrowserFacade, initAtStartup, shutdown } = require('./module/createCloakBrowser');
 
 (async () => {
-    console.log('[app] starting up ...');
+    console.log('[app] Starting up ...');
+    await initAtStartup();
+
     // Create the facade once at startup (NO browser window opens now)
     global.browser = createBrowserFacade({
-    getLimit: () => global.browserLimit,
-    onInc: () => { global.browserLength += 1; },
-    onDec: () => { global.browserLength = Math.max(0, global.browserLength - 1); },
-    getCount: () => global.browserLength,
+        getLimit: () => global.browserLimit,
+        onInc: () => { global.browserLength += 1; },
+        onDec: () => { global.browserLength = Math.max(0, global.browserLength - 1); },
+        getCount: () => global.browserLength,
     });
 
     const getSource = require('./endpoints/getSource')
@@ -35,16 +37,26 @@ const { createBrowserFacade, prepareOnce, shutdown } = require('./module/createC
     const wafSession = require('./endpoints/wafSession')
     const clickSolver = require('./endpoints/clickSolver')
 
-    // check for updates and download cloakbrowser once at startup
-    console.log('[app] preparing Cloakbrowser ...');
-    await prepareOnce();
-
     if (process.env.NODE_ENV !== 'development') {
-        let server = app.listen(port, () => { console.log(`[app] service running on port ${port}`) })
+        let server = app.listen(port, () => { console.log(`[app] Service running on port ${port}`) })
         try {
             server.timeout = global.timeOut
         } catch (e) { }
     }
+
+    
+    // --- to monitor mem usage
+    // setInterval(() => {
+    // const m = process.memoryUsage();
+
+    // console.log('[MEM]', {
+    //     rssMB: (m.rss / 1024 / 1024).toFixed(1),
+    //     heapUsedMB: (m.heapUsed / 1024 / 1024).toFixed(1),
+    //     heapTotalMB: (m.heapTotal / 1024 / 1024).toFixed(1),
+    //     externalMB: (m.external / 1024 / 1024).toFixed(1),
+    // });
+    // }, 10000).unref();
+
 
     app.post('/cf-clearance-scraper', async (req, res) => {
 

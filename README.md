@@ -22,10 +22,10 @@ sudo docker rmi jairoxyz/cf-clearance-scraper-cb:latest --force
 ```
 
 ```bash
-docker run -d -p 3000:3000 \
--e PORT=3000 \
+docker run -d -p 3001:3001 \
+-e PORT=3001 \
 -e browserLimit=20 \
--e timeOut=60000 \
+-e timeOut=30000 \
 jairoxyz/cf-clearance-scraper-cb:latest
 ```
 

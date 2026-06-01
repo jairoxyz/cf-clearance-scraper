@@ -1,6 +1,7 @@
 const CHALLENGE_TITLES = ['Just a moment...',
   'Please Wait... | Cloudflare',
   'Cloudflare Turnstile demo: Sample Form with Cloudflare Turnstile',
+  'Maintenance - GUpload',
 ];
 
 
@@ -55,6 +56,10 @@ async function waitForChallengeFrame(page, timeout = 15000) {
   while (Date.now() < deadline) {
     for (const frame of page.frames()) {
       if (frame === page.mainFrame() || frame.isDetached()) continue;
+      
+      const url = frame.url();
+      if (!url || url === 'about:blank') continue; // <-- key fix
+
       await frame.evaluate(() => new Promise(res => {
         if (document.readyState !== 'loading') return res();
         document.addEventListener('DOMContentLoaded', res, { once: true });
@@ -272,7 +277,7 @@ async function solveCloudflare(page) {
     return false;
   }
 
-  console.log('[solveCloudflare] Challenge solved successfully.');
+  console.log('[solveCloudflare] ✓ Challenge solved successfully.');
 
   // Post-solve wait (only when solved)
   // Wait for leaving the challenge platform URL; ignore timeout.

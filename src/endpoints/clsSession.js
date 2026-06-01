@@ -182,13 +182,13 @@ async function simulateHumanMouseMovement(page) {
       height: window.innerHeight,
     }));
  
-    const moves = 3 + Math.floor(Math.random() * 5); // 3–7 movements
+    const moves = 2 + Math.floor(Math.random() * 4); // 2–5 movements
     for (let i = 0; i < moves; i++) {
       const x = Math.floor(50 + Math.random() * (width  - 100));
       const y = Math.floor(50 + Math.random() * (height - 100));
-      const steps = 5 + Math.floor(Math.random() * 10); // 5–14 steps per move
+      const steps = 3 + Math.floor(Math.random() * 8); // 3–9 steps per move
       await page.mouse.move(x, y, { steps });
-      await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 200)));
+      await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 150)));
     }
   } catch (_) {}
 }
@@ -203,7 +203,7 @@ async function solveCloudflare(page) {
   // Simulate human presence: random movements across the page before solving
   await simulateHumanMouseMovement(page);
 
-  const maxMs = global.timeOut || 30000;
+  const maxMs = global.timeOut || 45000;
   const deadline = Date.now() + maxMs;
 
   let solved = false;
@@ -234,7 +234,7 @@ async function solveCloudflare(page) {
 
     // 3) After click: wait briefly for title to change away from challenge titles
     try {
-      // waitForFunction waits until the function becomes truthy or timeout occurs. 【1-0c7b5e】
+      // waitForFunction waits until the function becomes truthy or timeout occurs.
       await page.waitForFunction(
         (titles) => !titles.includes(document.title),
         { timeout: 5000, polling: 200 },
@@ -322,7 +322,7 @@ function getSource({ url, proxy }) {
         await context.close();
         reject('Timeout Error');
       }
-    }, global.timeOut || 30000);
+    }, global.timeOut || 45000);
 
     console.log(`[app] Request received for ${url} ...`)
     try {

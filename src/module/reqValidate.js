@@ -9,7 +9,7 @@ const schema = {
     "properties": {
         "mode": {
             "type": "string",
-            "enum": ["source", "turnstile-min", "turnstile-max", "waf-session", "click-solver"],
+            "enum": ["source", "turnstile-min", "turnstile-max", "waf-session", "cls-session", "cls-source"],
         },
         "proxy": {
             "type": "object",

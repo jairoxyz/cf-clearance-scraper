@@ -195,7 +195,7 @@ function getSource({ url, proxy }) {
         
         // Wait for cf_clearance
         await waitForClearance(context, url, 30000);
-        console.log('[app] ✓ cf_clearance detected via CDP');
+        console.log('[app] cf_clearance detected via CDP');
 
         const responseHeaders = mainResponse ? await mainResponse.request().headers() : {};
         const cookies = await context.cookies(url);

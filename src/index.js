@@ -35,7 +35,9 @@ const { createBrowserFacade, initAtStartup, shutdown } = require('./module/creat
     const solveTurnstileMin = require('./endpoints/solveTurnstile.min')
     const solveTurnstileMax = require('./endpoints/solveTurnstile.max')
     const wafSession = require('./endpoints/wafSession')
-    const clickSolver = require('./endpoints/clickSolver')
+    const clsSession = require('./endpoints/clsSession')
+    const clsSource = require('./endpoints/clsSource')
+
 
     if (process.env.NODE_ENV !== 'development') {
         let server = app.listen(port, () => { console.log(`[app] Service running on port ${port}`) })
@@ -90,8 +92,11 @@ const { createBrowserFacade, initAtStartup, shutdown } = require('./module/creat
             case "waf-session":
                 result = await wafSession(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
                 break;
-            case "click-solver":
-                result = await clickSolver(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+            case "cls-session":
+                result = await clsSession(data).then(res => { return { ...res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
+                break;
+            case "cls-source":
+                result = await clsSource(data).then(res => { return { source: res, code: 200 } }).catch(err => { return { code: 500, message: err.message } })
                 break;
         }
 

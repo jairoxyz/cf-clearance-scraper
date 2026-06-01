@@ -6,7 +6,7 @@ Cloudflare protection not only checks cookies in the request. It also checks var
 
 Cookies with cf in the name belong to Cloudflare. You can find out what these cookies do and how long they are valid by **[Clicking Here](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/)**.
 
-In this feature branch puppeteer-real-browser and rebrowser-core were replaced with **https://github.com/CloakHQ/CloakBrowser** and a click solver for interstitial challenges was added.
+In this feature branch puppeteer-real-browser and rebrowser-core were replaced with **https://github.com/CloakHQ/CloakBrowser**, a click solver for interstitial challenges and support for JSD challenges were added.
 
 
 ## Installation
@@ -166,11 +166,21 @@ fetch('http://localhost:3000/cf-clearance-scraper', {
 ```
 
 
-## Use click solver for interstitial challenges
+## Use click solver for interstitial challenges. Same session response as waf-session.
 ```bash
 curl -L -X POST 'http://localhost:3001/cf-clearance-scraper' \
     -H 'Content-Type: application/json' \
-    --data-raw '{"mode": "click-solver", \
+    --data-raw '{"mode": "cls-session", \
+                "url": "https://nopecha.com/demo/cloudflare"}'
+
+```
+
+
+## Use click solver to return page source.
+```bash
+curl -L -X POST 'http://localhost:3001/cf-clearance-scraper' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{"mode": "cls-source", \
                 "url": "https://nopecha.com/demo/cloudflare"}'
 
 ```

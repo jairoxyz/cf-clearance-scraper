@@ -45,9 +45,9 @@ function prepareOnce() {
     preparedPromise = (async () => {
       try {
         await ensureAndPruneCloakbrowserCache({ syncUpdateAtStartup: true });
-        console.log('[Cloakbrowser] cache prepared');
+        console.log('[Cloakbrowser] Cache prepared');
       } catch (e) {
-        console.warn('[Cloakbrowser] cache prune skipped:', e?.message || e);
+        console.warn('[Cloakbrowser] Cache prune skipped:', e?.message || e);
       }
     })();
   }

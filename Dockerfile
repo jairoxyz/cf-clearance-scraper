@@ -84,6 +84,7 @@ ENV HOME=/home/node \
     DISPLAY=:99 \
     NODE_ENV=production \
     PORT=3001 \
+    LOG=0 \
     CLOAKBROWSER_CACHE_DIR=/home/node/.cloakbrowser \
     CLOAKBROWSER_AUTO_UPDATE=false
 

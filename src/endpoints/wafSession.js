@@ -1,5 +1,7 @@
 // wafsession for CF challenges incl. JSD
 
+const { debugLog, infoLog } = require('../module/logger');
+
 async function findAcceptLanguage(page) {
   return await page.evaluate(() => 
     navigator.language || navigator.languages?.[0] || 'en-US'
@@ -96,7 +98,7 @@ function getSource({ url, proxy }) {
       }
     }, global.timeOut || 60000);
 
-    console.log(`[app] Request received for ${url} ...`);
+    infoLog(`[app] Request received for ${url} ...`);
 
     try {
       const page = await context.newPage();
@@ -168,7 +170,7 @@ function getSource({ url, proxy }) {
           isResolved = true;
           clearTimeout(cl);
 
-          console.log('[app] ✓ Session data extracted successfully');
+          infoLog('[app] ✓ Session data extracted successfully');
           resolve({ cookies, headers });
         }
       };
@@ -183,7 +185,7 @@ function getSource({ url, proxy }) {
 
       // Branch to JSD flow if detected & not already resolved
       if (hasJSD && !isResolved) {
-        console.log('[app] JSD detected. Disabling interception & reloading...');
+        debugLog('[app] JSD detected. Disabling interception & reloading...');
         
         // Cleanly disable interception & remove listeners
         await page.setRequestInterception(false);
@@ -195,7 +197,7 @@ function getSource({ url, proxy }) {
         
         // Wait for cf_clearance
         await waitForClearance(context, url, 30000);
-        console.log('[app] cf_clearance detected via CDP');
+        debugLog('[app] CF_CLEARANCE detected via CDP');
 
         const responseHeaders = mainResponse ? await mainResponse.request().headers() : {};
         const cookies = await context.cookies(url);
@@ -206,7 +208,7 @@ function getSource({ url, proxy }) {
         clearTimeout(cl);
         await context.close();
 
-        console.log('[app] ✓ Session data extracted successfully');
+        infoLog('[app] ✓ Session data extracted successfully.');
         resolve({ cookies, headers });
       }
       // If !hasJSD, the original respHandler already resolved or will resolve

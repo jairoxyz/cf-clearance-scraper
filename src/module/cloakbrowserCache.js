@@ -28,13 +28,13 @@ async function ensureAndPruneCloakbrowserCache() {
     }
 
     const info = binaryInfo ? binaryInfo() : null;
-    if (info?.version) console.log('[cloakbrowser-cache] effective version:', info.version);
-    console.log('[cloakbrowser-cache] effective binary:', exePath);
+    if (info?.version) console.log('[cloakbrowser-cache] Effective version:', info.version);
+    console.log('[cloakbrowser-cache] Effective binary:', exePath);
 
     // Derive keep dir from the executable path (most reliable)
     const keepDir = path.basename(path.dirname(exePath)); // chromium-<version>
     if (!keepDir.startsWith('chromium-')) {
-      console.warn('[cloakbrowser-cache] cannot derive keepDir; skipping prune');
+      console.warn('[cloakbrowser-cache] Cannot derive keepDir; skipping prune');
       return info || { path: exePath };
     }
 
@@ -51,10 +51,10 @@ async function ensureAndPruneCloakbrowserCache() {
         removed += 1;
       }
     } catch (e) {
-      console.warn('[cloakbrowser-cache] prune failed:', e?.message || e);
+      console.warn('[cloakbrowser-cache] Prune failed:', e?.message || e);
     }
 
-    console.log(`[cloakbrowser-cache] kept ${keepDir}; removed ${removed} old version(s)`);
+    console.log(`[cloakbrowser-cache] Kept ${keepDir}; removed ${removed} old version(s)`);
     return info || { path: exePath };
   })();
 

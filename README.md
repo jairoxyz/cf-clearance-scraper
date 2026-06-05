@@ -26,6 +26,7 @@ docker run -d -p 3001:3001 \
 -e PORT=3001 \
 -e browserLimit=20 \
 -e timeOut=30000 \
+-e LOG=1 \
 jairoxyz/cf-clearance-scraper-cb:latest
 ```
 

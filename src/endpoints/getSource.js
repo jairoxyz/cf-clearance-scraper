@@ -1,5 +1,7 @@
 // getSource with JSD challenge solver added
 
+const { debugLog, infoLog } = require('../module/logger');
+
 async function waitForClearance(context, url, timeout = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -30,7 +32,7 @@ function getSource({ url, proxy }) {
       }
     }, global.timeOut || 60000);
 
-    console.log(`[app] Request received for ${url} ...`);
+    infoLog(`[app] Request received for ${url} ...`);
 
     try {
       const page = await context.newPage();
@@ -97,7 +99,7 @@ function getSource({ url, proxy }) {
           isResolved = true;
           clearTimeout(cl);
 
-          console.log('[app] ✓ Page content extracted successfully');
+          infoLog('[app] ✓ Page content extracted successfully');
           resolve(html);
         }
       };
@@ -112,7 +114,7 @@ function getSource({ url, proxy }) {
 
       // Branch to JSD flow if detected & not already resolved
       if (hasJSD && !isResolved) {
-        console.log('[app] JSD detected. Disabling interception & reloading...');
+        debugLog('[app] JSD detected. Disabling interception & reloading...');
         
         // Cleanly disable interception & remove listeners
         await page.setRequestInterception(false);
@@ -124,7 +126,7 @@ function getSource({ url, proxy }) {
         
         // Wait for cf_clearance
         await waitForClearance(context, url, 30000);
-        console.log('[app] ✓ cf_clearance detected via CDP');
+        debugLog('[app] ✓ CF_CLEARANCE detected via CDP');
 
         // ✅ Small buffer for DOM to fully render post-challenge
         await new Promise(r => setTimeout(r, 1000));
@@ -136,7 +138,7 @@ function getSource({ url, proxy }) {
         clearTimeout(cl);
         await context.close();
 
-        console.log('[app] ✓ Page content extracted successfully');
+        infoLog('[app] ✓ Page content extracted successfully.');
         resolve(html);
       }
       // If !hasJSD, the original respHandler already resolved or will resolve

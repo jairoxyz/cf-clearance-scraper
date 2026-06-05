@@ -1,3 +1,6 @@
+const { debug } = require('puppeteer-core');
+const { debugLog, infoLog, warnLog, errorLog } = require('../module/logger');
+
 const CHALLENGE_TITLES = ['Just a moment...',
   'Please Wait... | Cloudflare',
   'Cloudflare Turnstile demo: Sample Form with Cloudflare Turnstile',
@@ -91,14 +94,26 @@ async function clickCheckboxViaCDP(page) {
 
     const nodeId = findCheckboxNodeId(pageRoot);
     if (nodeId) {
-      console.log('[clickCheckbox] Found checkbox on main page, nodeId:', nodeId);
+      debugLog('[clickCheckbox] Found checkbox on main page, nodeId:', nodeId);
       const centre = await getNodeCentre(pageClient, nodeId);
       if (!centre) return false;
-      const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
+      //const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
+      const { scrollX, scrollY, width, height } = await page.evaluate(() => ({
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }));
       const vx = centre.x - scrollX;
       const vy = centre.y - scrollY;
-      console.log('[clickCheckbox] Clicking at viewport:', vx, vy);
+      const startX = width / 2; // Realistic start: viewport center
+      const startY = height / 2;
+      debugLog('[clickCheckbox] Clicking at viewport:', vx, vy);
       await page.mouse.move(vx, vy);
+      // Bezier-like movement using Puppeteer's native API
+      // const waypoints = generateBezierWaypoints(startX, startY, vx, vy);
+      // for (const wp of waypoints) await page.mouse.move(wp.x, wp.y, { steps: 1 });
+      // await new Promise(r => setTimeout(r, 40 + Math.random() * 60)); // Human hesitation
       await page.mouse.click(vx, vy);
       return true;
     }
@@ -107,10 +122,10 @@ async function clickCheckboxViaCDP(page) {
   }
 
   // ── Step 2: Turnstile widget — checkbox inside cross-origin iframe ────────
-  console.log('[clickCheckbox] Not found on main page, waiting for challenge frame...');
+  debugLog('[clickCheckbox] Not found on main page, waiting for challenge frame...');
   const frame = await waitForChallengeFrame(page);
-  if (!frame) { console.log('[clickCheckbox] No challenge frame found'); return false; }
-  console.log('[clickCheckbox] Using frame:', frame.url());
+  if (!frame) { debugLog('[clickCheckbox] No challenge frame found'); return false; }
+  debugLog('[clickCheckbox] Using frame:', frame.url());
 
   const pageClient2 = await page.createCDPSession();
   let iframeOffsetX = 0;
@@ -125,10 +140,10 @@ async function clickCheckboxViaCDP(page) {
       if (model) {
         iframeOffsetX = model.content[0];
         iframeOffsetY = model.content[1];
-        console.log('[clickCheckbox] Iframe offset in main page:', iframeOffsetX, iframeOffsetY);
+        debugLog('[clickCheckbox] Iframe offset in main page:', iframeOffsetX, iframeOffsetY);
       }
     } else {
-      console.log('[clickCheckbox] iframe element not found in page DOM — offset defaults to 0,0');
+      debugLog('[clickCheckbox] Iframe element not found in page DOM — offset defaults to 0,0');
     }
   } finally {
     await pageClient2.detach().catch(() => {});
@@ -137,7 +152,7 @@ async function clickCheckboxViaCDP(page) {
   const frameUrl = frame.url();
   const iframeTarget = page.browser().targets().find(t => t.url() === frameUrl);
   if (!iframeTarget) {
-    console.log('[clickCheckbox] Could not find Target for frame URL:', frameUrl);
+    debugLog('[clickCheckbox] Could not find Target for frame URL:', frameUrl);
     return false;
   }
 
@@ -147,24 +162,35 @@ async function clickCheckboxViaCDP(page) {
     const { root: iframeRoot } = await iframeClient.send('DOM.getDocument', { depth: -1, pierce: true });
     const checkboxNodeId = findCheckboxNodeId(iframeRoot);
     if (!checkboxNodeId) {
-      console.log('[clickCheckbox] No checkbox found in iframe DOM');
+      debugLog('[clickCheckbox] No checkbox found in iframe DOM');
       return false;
     }
-    console.log('[clickCheckbox] Found checkbox in iframe, nodeId:', checkboxNodeId);
+    debugLog('[clickCheckbox] Found checkbox in iframe, nodeId:', checkboxNodeId);
 
     const { model } = await iframeClient.send('DOM.getBoxModel', { nodeId: checkboxNodeId })
       .catch(() => ({ model: null }));
-    if (!model) { console.log('[clickCheckbox] Could not get iframe checkbox box model'); return false; }
+    if (!model) { debugLog('[clickCheckbox] Could not get iframe checkbox box model'); return false; }
 
     const checkboxIframeX = (model.content[0] + model.content[4]) / 2;
     const checkboxIframeY = (model.content[1] + model.content[5]) / 2;
 
-    const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
+    //const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
+    const { scrollX, scrollY, width, height } = await page.evaluate(() => ({
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
     const x = iframeOffsetX + checkboxIframeX - scrollX;
     const y = iframeOffsetY + checkboxIframeY - scrollY;
+    const startX = width / 2; // Realistic start: viewport center
+    const startY = height / 2;
 
-    console.log('[clickCheckbox] Clicking at viewport:', x, y);
+    debugLog('[clickCheckbox] Clicking at viewport:', x, y);
     await page.mouse.move(x, y);
+    // const waypoints = generateBezierWaypoints(startX, startY, x, y);
+    // for (const wp of waypoints) await page.mouse.move(wp.x, wp.y, { steps: 1 });
+    // await new Promise(r => setTimeout(r, 50 + Math.random() * 70)); // Human hesitation
     await page.mouse.click(x, y);
     return true;
 
@@ -175,33 +201,60 @@ async function clickCheckboxViaCDP(page) {
 
 // Simulate random human-like mouse movement across the page before solving.
 // Generates random waypoints within the visible viewport with random pauses.
-async function simulateHumanMouseMovement(page) {
-  try {
-    const { width, height } = await page.evaluate(() => ({
-      width:  window.innerWidth,
-      height: window.innerHeight,
-    }));
+// async function simulateHumanMouseMovement(page) {
+//   try {
+//     const { width, height } = await page.evaluate(() => ({
+//       width:  window.innerWidth,
+//       height: window.innerHeight,
+//     }));
  
-    const moves = 2 + Math.floor(Math.random() * 4); // 2–5 movements
-    for (let i = 0; i < moves; i++) {
-      const x = Math.floor(50 + Math.random() * (width  - 100));
-      const y = Math.floor(50 + Math.random() * (height - 100));
-      const steps = 3 + Math.floor(Math.random() * 8); // 3–9 steps per move
-      await page.mouse.move(x, y, { steps });
-      await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 150)));
-    }
-  } catch (_) {}
-}
+//     const moves = 2 + Math.floor(Math.random() * 4); // 2–5 movements
+//     for (let i = 0; i < moves; i++) {
+//       const x = Math.floor(50 + Math.random() * (width  - 100));
+//       const y = Math.floor(50 + Math.random() * (height - 100));
+//       const steps = 3 + Math.floor(Math.random() * 8); // 3–9 steps per move
+//       await page.mouse.move(x, y, { steps });
+//       await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 200)));
+//     }
+//   } catch (_) {}
+// }
+
+/**
+ * Generate bezier-like waypoints between two points
+ * Uses Puppeteer's native mouse.move() (CloakBrowser-compatible)
+ */
+// function generateBezierWaypoints(startX, startY, endX, endY, pointCount = 5) {
+//   const waypoints = [];
+  
+//   // Randomized control points for natural curve variation
+//   const cp1x = startX + (endX - startX) * (0.25 + Math.random() * 0.3);
+//   const cp1y = startY + (endY - startY) * (0.1 + Math.random() * 0.4);
+//   const cp2x = startX + (endX - startX) * (0.7 + Math.random() * 0.25);
+//   const cp2y = startY + (endY - startY) * (0.6 + Math.random() * 0.35);
+  
+//   for (let i = 0; i <= pointCount; i++) {
+//     const t = i / pointCount;
+//     const t1 = 1 - t;
+    
+//     // Cubic bezier formula
+//     const x = t1**3 * startX + 3 * t1**2 * t * cp1x + 3 * t1 * t**2 * cp2x + t**3 * endX;
+//     const y = t1**3 * startY + 3 * t1**2 * t * cp1y + 3 * t1 * t**2 * cp2y + t**3 * endY;
+    
+//     waypoints.push({ x: Math.round(x), y: Math.round(y) });
+//   }
+  
+//   return waypoints;
+// }
 
 async function solveCloudflare(page) {
   // If we're not on a challenge page, nothing to solve.
   const title = await page.title().catch(() => '');
   if (!CHALLENGE_TITLES.includes(title)) return false;
 
-  console.log('[solveCloudflare] Challenge detected, attempting to solve...');
+  infoLog('[solveCloudflare] Challenge detected, attempting to solve ...');
 
   // Simulate human presence: random movements across the page before solving
-  await simulateHumanMouseMovement(page);
+  //await simulateHumanMouseMovement(page);
 
   const maxMs = global.timeOut || 45000;
   const deadline = Date.now() + maxMs;
@@ -216,14 +269,14 @@ async function solveCloudflare(page) {
     // 1) Fast solved check (handles auto-solve / solved during waits)
     const currentTitle = await page.title().catch(() => null);
     if (currentTitle != null && !CHALLENGE_TITLES.includes(currentTitle)) {
-      console.log('[solveCloudflare] Challenge resolved (title changed).');
+      debugLog('[solveCloudflare] Challenge resolved (title changed).');
       solved = true;
       break;
     }
 
     // 2) Attempt click
     const clicked = await clickCheckboxViaCDP(page).catch(err => {
-      console.log('[solveCloudflare] CDP error:', err?.message || String(err));
+      errorLog('[solveCloudflare] CDP error:', err?.message || String(err));
       return false;
     });
 
@@ -241,7 +294,7 @@ async function solveCloudflare(page) {
         CHALLENGE_TITLES
       );
 
-      console.log('[solveCloudflare] Challenge resolved (waitForFunction).');
+      debugLog('[solveCloudflare] Challenge resolved (waitForFunction).');
       solved = true;
       break;
 
@@ -255,29 +308,29 @@ async function solveCloudflare(page) {
       if (!isTimeout) {
         lastNonTimeoutError = err;
         // This can happen on navigation / reloads: "Execution context was destroyed..."
-        console.log(`[solveCloudflare] waitForFunction non-timeout error (attempt ${attempt}):`, msg);
+        debugLog(`[solveCloudflare] WaitForFunction non-timeout error (attempt ${attempt}):`, msg);
       } else {
         // Expected case: not solved yet within the short 2s window
-        console.log(`[solveCloudflare] Not solved yet (2s check timed out, attempt ${attempt}).`);
+        debugLog(`[solveCloudflare] Not solved yet (2s check timed out, attempt ${attempt}).`);
       }
     }
 
     // 4) Cooldown before retry: CF often refreshes/reloads the widget
-    console.log('[solveCloudflare] Solve rejected, waiting for fresh challenge...');
+    debugLog('[solveCloudflare] Solve rejected, waiting for fresh challenge...');
     // Random cooldown 1.5–3s — avoids fixed-interval patterns CF can fingerprint
     await new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1500)));
   }
 
   // If loop ended without solved=true, it was a timeout.
   if (!solved) {
-    console.log(`[solveCloudflare] Timed out after ${maxMs}ms. Challenge NOT solved.`);
+    warnLog(`[solveCloudflare] Timed out after ${maxMs}ms. Challenge NOT solved.`);
     if (lastNonTimeoutError) {
-      console.log('[solveCloudflare] Last non-timeout error:', lastNonTimeoutError?.message || String(lastNonTimeoutError));
+      debugLog('[solveCloudflare] Last non-timeout error:', lastNonTimeoutError?.message || String(lastNonTimeoutError));
     }
     return false;
   }
 
-  console.log('[solveCloudflare] ✓ Challenge solved successfully.');
+  infoLog('[solveCloudflare] ✓ Challenge solved successfully.');
 
   // Post-solve wait (only when solved)
   // Wait for leaving the challenge platform URL; ignore timeout.
@@ -324,7 +377,7 @@ function getSource({ url, proxy }) {
       }
     }, global.timeOut || 45000);
 
-    console.log(`[app] Request received for ${url} ...`)
+    infoLog(`[app] Request received for ${url} ...`)
     try {
       const page = await context.newPage();
 
@@ -361,7 +414,7 @@ function getSource({ url, proxy }) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
       await solveCloudflare(page).catch((err) => {
-        console.warn('[solveCloudflare] Solver error:', err?.message || err);
+        warnLog('[solveCloudflare] Solver error:', err?.message || err);
       });
 
       if (!capturedHeaders) {
@@ -373,6 +426,7 @@ function getSource({ url, proxy }) {
       await context.close();
       isResolved = true;
       clearTimeout(cl);
+      infoLog('[app] ✓ Session data extracted successfully.');
       resolve({ cookies, headers: capturedHeaders });
 
     } catch (e) {

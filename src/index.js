@@ -5,6 +5,7 @@ const bodyParser = require('body-parser')
 const authToken = process.env.authToken || null
 const cors = require('cors')
 const reqValidate = require('./module/reqValidate')
+const { debugLog, infoLog, warnLog, errorLog } = require('./module/logger');
 
 
 global.browserLength = 0
@@ -20,7 +21,7 @@ app.use(cors())
 const { createBrowserFacade, initAtStartup, shutdown } = require('./module/createCloakBrowser');
 
 (async () => {
-    console.log('[app] Starting up ...');
+    infoLog('[app] Starting up ...');
     await initAtStartup();
 
     // Create the facade once at startup (NO browser window opens now)
@@ -40,7 +41,7 @@ const { createBrowserFacade, initAtStartup, shutdown } = require('./module/creat
 
 
     if (process.env.NODE_ENV !== 'development') {
-        let server = app.listen(port, () => { console.log(`[app] Service running on port ${port}`) })
+        let server = app.listen(port, () => { infoLog(`[app] Service running on port ${port}`) })
         try {
             server.timeout = global.timeOut
         } catch (e) { }
@@ -112,13 +113,13 @@ const { createBrowserFacade, initAtStartup, shutdown } = require('./module/creat
 
 // graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('[app] SIGINT received, shutting down ...');
+  infoLog('[app] SIGINT received, shutting down ...');
   await shutdown();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('[app] SIGTERM received, shutting down ...');
+  infoLog('[app] SIGTERM received, shutting down ...');
   await shutdown();
   process.exit(0);
 });

@@ -24,9 +24,11 @@ RUN rm -rf /tmp/* /var/tmp/*
 # =========================
 FROM node:lts-slim AS runtime
 
+
 # --- Minimal OS deps ---
 # Keep only what you need to run headed Chromium with Xvfb + your binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    gosu \
     ca-certificates \
     xvfb \
     # chromium deps
@@ -78,7 +80,15 @@ COPY --from=builder /app /app
 RUN mkdir -p /home/node/.cloakbrowser \
  && chown -R node:node /home/node /app
 
-USER node
+# Create the X11 socket directory with correct root ownership and permissions
+RUN mkdir -p /tmp/.X11-unix \
+&& chown root:root /tmp/.X11-unix \
+&& chmod 1777 /tmp/.X11-unix
+
+# USER node
+# drop to use node via gosu in entrypoint.sh after setting TZ from env
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV HOME=/home/node \
     DISPLAY=:99 \
@@ -90,5 +100,7 @@ ENV HOME=/home/node \
 
 EXPOSE 3001
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # CMD ["pm2-runtime", "src/index.js"]
 CMD ["node", "src/index.js"]
+

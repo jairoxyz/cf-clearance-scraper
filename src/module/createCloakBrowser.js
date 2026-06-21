@@ -19,11 +19,18 @@ function startXvfbIfNeeded() {
   process.env.DISPLAY = process.env.DISPLAY || ':99';
   try {
     xvfbSession = new Xvfb({
-      silent: true,
-      xvfb_args: ['-screen', '0', '1920x1080x24', '-ac'],
+      //silent: true,
+      xvfb_args: [
+        '-screen', '0', '1920x1080x24', // Standard FHD, 24-bit color depth
+        '-ac',                          // Disable access control (prevents X11 auth errors)
+        '+extension', 'GLX',            // CRITICAL: Enables GLX for WebGL/Canvas rendering
+        '+render',                      // Enables the Render extension for 2D acceleration
+        '-noreset',                     // Prevents X server from resetting when Puppeteer closes a page
+        '-dpi', '96'                    // Sets standard DPI for consistent font fingerprinting
+      ],
     });
-    xvfbSession.startSync();
-    console.log('[XVFB] Started');
+    xvfbSession.startSync(); 
+    console.log(`[XVFB] Started on display ${process.env.DISPLAY}`);
   } catch (err) {
     console.error('[XVFB] Start error:', err?.message || err);
     xvfbSession = null;
@@ -152,6 +159,9 @@ function createBrowserFacade(hooks = {}) {
         '--disable-dev-shm-usage',
         '--enable-blink-features=FakeShadowRoot',
         `--fingerprint=${fingerprintSeed}`,
+         '--use-gl=angle',          // Force ANGLE graphics backend
+        '--use-angle=swiftshader', // Use SwiftShader for software WebGL rendering
+        '--enable-webgl',
       ];
 
       const proxyServer = normalizeProxyServer(options.proxyServer);
@@ -167,6 +177,7 @@ function createBrowserFacade(hooks = {}) {
         browser = await launch({
           headless: false,
           humanize: true,
+          geoip: true,
           humanPreset: 'careful',
           args,
           launchOptions: {

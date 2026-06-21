@@ -15,7 +15,7 @@ Installation with Docker is recommended.
 
 **Docker**
 
-Please make sure you have installed the latest image. If you get an error, try downloading the latest version by going to Docker Hub.
+Please make sure you have installed the latest image. If you get an error, try downloading the latest version by going to Docker Hub. Set TZ env to host timezone.
 
 ```bash
 sudo docker rmi jairoxyz/cf-clearance-scraper-cb:latest --force
@@ -26,7 +26,8 @@ docker run -d -p 3001:3001 \
 -e PORT=3001 \
 -e browserLimit=20 \
 -e timeOut=30000 \
--e LOG=1 \
+-e LOG|DEBUG=1|true|on \
+-e TZ="America/New_York" \
 jairoxyz/cf-clearance-scraper-cb:latest
 ```
 

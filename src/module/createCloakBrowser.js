@@ -19,7 +19,7 @@ function startXvfbIfNeeded() {
   process.env.DISPLAY = process.env.DISPLAY || ':99';
   try {
     xvfbSession = new Xvfb({
-      //silent: true,
+      silent: true,
       xvfb_args: [
         '-screen', '0', '1920x1080x24', // Standard FHD, 24-bit color depth
         '-ac',                          // Disable access control (prevents X11 auth errors)
@@ -159,7 +159,7 @@ function createBrowserFacade(hooks = {}) {
         '--disable-dev-shm-usage',
         '--enable-blink-features=FakeShadowRoot',
         `--fingerprint=${fingerprintSeed}`,
-         '--use-gl=angle',          // Force ANGLE graphics backend
+        '--use-gl=angle',          // Force ANGLE graphics backend
         '--use-angle=swiftshader', // Use SwiftShader for software WebGL rendering
         '--enable-webgl',
       ];
@@ -177,7 +177,6 @@ function createBrowserFacade(hooks = {}) {
         browser = await launch({
           headless: false,
           humanize: true,
-          geoip: true,
           humanPreset: 'careful',
           args,
           launchOptions: {

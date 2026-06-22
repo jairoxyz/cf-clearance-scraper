@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  luckycfcloak7:
+    container_name: cf-clearance-scraper-cb
+    image: jairoxyz/cf-clearance-scraper-cb:latest
+
+    init: true
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-3001}:3001"
+
+    environment:
+      PORT: 3001
+      TZ: Europe/London
+      browserLimit: 20
+      timeOut: 60000

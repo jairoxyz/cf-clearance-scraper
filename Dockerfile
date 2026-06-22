@@ -86,7 +86,8 @@ RUN mkdir -p /tmp/.X11-unix \
 && chmod 1777 /tmp/.X11-unix
 
 # USER node
-# drop to use node via gosu in entrypoint.sh after setting TZ from env
+
+# drop to user node via gosu in entrypoint.sh after setting TZ from env
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

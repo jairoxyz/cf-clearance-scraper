@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  luckycfcloak7:
+  cf-clearance-scraper-cb:
     container_name: cf-clearance-scraper-cb
     image: jairoxyz/cf-clearance-scraper-cb:latest
 

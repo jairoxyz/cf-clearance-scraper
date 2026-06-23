@@ -1,5 +1,6 @@
 const { debug } = require('puppeteer-core');
 const { debugLog, infoLog, warnLog, errorLog } = require('../module/logger');
+const { clickCheckboxViaCDP } = require('../module/clickCheckbox'); 
 
 const CHALLENGE_TITLES = ['Just a moment...',
   'Please Wait... | Cloudflare',
@@ -8,179 +9,25 @@ const CHALLENGE_TITLES = ['Just a moment...',
 ];
 
 
-function findCheckboxNodeId(node) {
-  if (node.nodeName === 'INPUT') {
-    const attrs = node.attributes || [];
-    const typeIdx = attrs.indexOf('type');
-    if (typeIdx !== -1 && attrs[typeIdx + 1] === 'checkbox') {
-      return node.nodeId;
-    }
-  }
-  for (const child of node.children || []) {
-    const found = findCheckboxNodeId(child);
-    if (found) return found;
-  }
-  for (const sr of node.shadowRoots || []) {
-    const found = findCheckboxNodeId(sr);
-    if (found) return found;
-  }
-  return null;
-}
-
-function findIframeNodeId(node) {
-  if (node.nodeName === 'IFRAME') return node.nodeId;
-  for (const child of node.children || []) {
-    const found = findIframeNodeId(child);
-    if (found) return found;
-  }
-  for (const sr of node.shadowRoots || []) {
-    const found = findIframeNodeId(sr);
-    if (found) return found;
-  }
-  return null;
-}
-
-async function waitForChallengeFrame(page, timeout = 15000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    for (const frame of page.frames()) {
-      if (frame === page.mainFrame() || frame.isDetached()) continue;
-      
-      const url = frame.url();
-      if (!url || url === 'about:blank') continue; // <-- key fix
-
-      await frame.evaluate(() => new Promise(res => {
-        if (document.readyState !== 'loading') return res();
-        document.addEventListener('DOMContentLoaded', res, { once: true });
-      })).catch(() => {});
-      return frame;
-    }
-    await new Promise(r => setTimeout(r, 200));
-  }
-  return null;
-}
-
-async function getNodeCentre(client, nodeId) {
-  await client.send('DOM.scrollIntoViewIfNeeded', { nodeId }).catch(() => {});
-  const { model } = await client.send('DOM.getBoxModel', { nodeId })
-    .catch(() => ({ model: null }));
-  if (!model) return null;
-  return {
-    x: (model.content[0] + model.content[4]) / 2,
-    y: (model.content[1] + model.content[5]) / 2,
-  };
-}
-
-async function clickCheckboxViaCDP(page) {
-  // ── Step 1: interstitial — checkbox directly on main page ────────────────
-  const pageClient = await page.createCDPSession();
-  try {
-    await pageClient.send('DOM.enable');
-    const { root: pageRoot } = await pageClient.send('DOM.getDocument', { depth: -1, pierce: true });
-
-    const nodeId = findCheckboxNodeId(pageRoot);
-    if (nodeId) {
-      debugLog('[clickCheckbox] Found checkbox on main page, nodeId:', nodeId);
-      const centre = await getNodeCentre(pageClient, nodeId);
-      if (!centre) return false;
-      const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
-      const vx = centre.x - scrollX;
-      const vy = centre.y - scrollY;
-      debugLog('[clickCheckbox] Clicking at viewport:', vx, vy);
-      await page.mouse.move(vx, vy);
-      await page.mouse.click(vx, vy);
-      return true;
-    }
-  } finally {
-    await pageClient.detach().catch(() => {});
-  }
-
-  // ── Step 2: Turnstile widget — checkbox inside cross-origin iframe ────────
-  debugLog('[clickCheckbox] Not found on main page, waiting for challenge frame...');
-  const frame = await waitForChallengeFrame(page);
-  if (!frame) { debugLog('[clickCheckbox] No challenge frame found'); return false; }
-  debugLog('[clickCheckbox] Using frame:', frame.url());
-
-  const pageClient2 = await page.createCDPSession();
-  let iframeOffsetX = 0;
-  let iframeOffsetY = 0;
-  try {
-    await pageClient2.send('DOM.enable');
-    const { root } = await pageClient2.send('DOM.getDocument', { depth: -1, pierce: true });
-    const iframeNodeId = findIframeNodeId(root);
-    if (iframeNodeId) {
-      const { model } = await pageClient2.send('DOM.getBoxModel', { nodeId: iframeNodeId })
-        .catch(() => ({ model: null }));
-      if (model) {
-        iframeOffsetX = model.content[0];
-        iframeOffsetY = model.content[1];
-        debugLog('[clickCheckbox] Iframe offset in main page:', iframeOffsetX, iframeOffsetY);
-      }
-    } else {
-      debugLog('[clickCheckbox] Iframe element not found in page DOM — offset defaults to 0,0');
-    }
-  } finally {
-    await pageClient2.detach().catch(() => {});
-  }
-
-  const frameUrl = frame.url();
-  const iframeTarget = page.browser().targets().find(t => t.url() === frameUrl);
-  if (!iframeTarget) {
-    debugLog('[clickCheckbox] Could not find Target for frame URL:', frameUrl);
-    return false;
-  }
-
-  const iframeClient = await iframeTarget.createCDPSession();
-  try {
-    await iframeClient.send('DOM.enable');
-    const { root: iframeRoot } = await iframeClient.send('DOM.getDocument', { depth: -1, pierce: true });
-    const checkboxNodeId = findCheckboxNodeId(iframeRoot);
-    if (!checkboxNodeId) {
-      debugLog('[clickCheckbox] No checkbox found in iframe DOM');
-      return false;
-    }
-    debugLog('[clickCheckbox] Found checkbox in iframe, nodeId:', checkboxNodeId);
-
-    const { model } = await iframeClient.send('DOM.getBoxModel', { nodeId: checkboxNodeId })
-      .catch(() => ({ model: null }));
-    if (!model) { debugLog('[clickCheckbox] Could not get iframe checkbox box model'); return false; }
-
-    const checkboxIframeX = (model.content[0] + model.content[4]) / 2;
-    const checkboxIframeY = (model.content[1] + model.content[5]) / 2;
-
-    const { scrollX, scrollY } = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
-    const x = iframeOffsetX + checkboxIframeX - scrollX;
-    const y = iframeOffsetY + checkboxIframeY - scrollY;
-
-    debugLog('[clickCheckbox] Clicking at viewport:', x, y);
-    await page.mouse.move(x, y);
-    await page.mouse.click(x, y);
-    return true;
-
-  } finally {
-    await iframeClient.detach().catch(() => {});
-  }
-}
-
 // Simulate random human-like mouse movement across the page before solving.
 // Generates random waypoints within the visible viewport with random pauses.
-async function simulateHumanMouseMovement(page) {
-  try {
-    const { width, height } = await page.evaluate(() => ({
-      width:  window.innerWidth,
-      height: window.innerHeight,
-    }));
+// async function simulateHumanMouseMovement(page) {
+//   try {
+//     const { width, height } = await page.evaluate(() => ({
+//       width:  window.innerWidth,
+//       height: window.innerHeight,
+//     }));
  
-    const moves = 2 + Math.floor(Math.random() * 4); // 2–5 movements
-    for (let i = 0; i < moves; i++) {
-      const x = Math.floor(50 + Math.random() * (width  - 100));
-      const y = Math.floor(50 + Math.random() * (height - 100));
-      const steps = 3 + Math.floor(Math.random() * 8); // 3–9 steps per move
-      await page.mouse.move(x, y, { steps });
-      await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 200)));
-    }
-  } catch (_) {}
-}
+//     const moves = 2 + Math.floor(Math.random() * 4); // 2–5 movements
+//     for (let i = 0; i < moves; i++) {
+//       const x = Math.floor(50 + Math.random() * (width  - 100));
+//       const y = Math.floor(50 + Math.random() * (height - 100));
+//       const steps = 3 + Math.floor(Math.random() * 8); // 3–9 steps per move
+//       await page.mouse.move(x, y, { steps });
+//       await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 200)));
+//     }
+//   } catch (_) {}
+// }
 
 async function solveCloudflare(page) {
   // If we're not on a challenge page, nothing to solve.

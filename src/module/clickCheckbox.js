@@ -16,6 +16,7 @@ const { debugLog } = require('./logger');
 // MODIFIED: Skips checkboxes that have 'name' or 'id' attributes,
 // since those belong to the site's native forms (e.g. "I agree to terms"),
 // not to Cloudflare's injected Turnstile checkbox.
+
 function findAllCheckboxNodeIds(node, results = []) {
   if (node.nodeName === 'INPUT') {
     const attrs = node.attributes || [];

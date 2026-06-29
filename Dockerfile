@@ -89,7 +89,9 @@ RUN mkdir -p /tmp/.X11-unix \
 
 # drop to user node via gosu in entrypoint.sh after setting TZ from env
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# make sure shell script uses LF only
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
+    && chmod +x /usr/local/bin/entrypoint.sh
 
 ENV HOME=/home/node \
     DISPLAY=:99 \

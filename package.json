@@ -1,6 +1,6 @@
 {
   "name": "cf-clearance-scraper-cb",
-  "version": "1.0.0",
+  "version": "1.0.9",
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -31,12 +31,12 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "body-parser": "^2.2.2",
-    "cloakbrowser": "^0.4.2",
+    "cloakbrowser": "^0.5.4",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jest": "^30.3.0",
-    "puppeteer-core": "^25.2.0",
+    "puppeteer-core": "^25.5.0",
     "supertest": "^7.0.0",
     "xvfb": "^0.4.0"
   }

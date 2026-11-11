@@ -6,7 +6,7 @@ Cloudflare protection not only checks cookies in the request. It also checks var
 
 Cookies with cf in the name belong to Cloudflare. You can find out what these cookies do and how long they are valid by **[Clicking Here](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/)**.
 
-In this feature branch puppeteer-real-browser and rebrowser-core were replaced with **https://github.com/CloakHQ/CloakBrowser**, a click solver for interstitial challenges and support for JSD challenges were added.
+In this feature branch puppeteer-real-browser and rebrowser-core were replaced with **https://github.com/CloakHQ/CloakBrowser**, a click solver for interstitial challenges and support for JSD challenges were added. Without CLOAKBROWSER_LICENSE_KEY the community tier of cloakbrowser is used in concurrent mode, otherwise the free pro tier in queue mode to ensure one browser session only: **https://cloakbrowser.dev/free/**
 
 
 ## Installation
@@ -28,6 +28,7 @@ docker run -d -p 3001:3001 \
 -e timeOut=30000 \
 -e LOG|DEBUG=1|true|on \
 -e TZ="America/New_York" \
+-e CLOAKBROWSER_LICENSE_KEY="cb_...."
 jairoxyz/cf-clearance-scraper-cb:latest
 ```
 
@@ -101,6 +102,7 @@ fetch('http://localhost:3000/cf-clearance-scraper', {
     body: JSON.stringify({
         url: 'https://developers.cloudflare.com/turnstile/troubleshooting/testing/',
         siteKey: "1x00000000000000000000BB",
+        action: "",
         mode: "turnstile-min",
         // proxy:{
         //     host: '127.0.0.1',
@@ -193,13 +195,13 @@ curl -L -X POST 'http://localhost:3001/cf-clearance-scraper' \
 No, a new context is started with each request and closed when the job is finished. Processes are executed with isolated contexts through a single browser.
 
 ### How Do I Limit the Browser Context to Open?
-You can do this by changing the process.env.browserLimit value. The default is 20
+You can do this by changing the process.env.browserLimit value. The default is 20. Please use a lower value in queue mode.
 
 ### How Do I Add Authentication to Api?
 You can add authorisation by changing the process.env.authToken variable. If this variable is added, it returns 401 if the authToken variable in the request body is not equal to the token you specify.
 
 ### How Do I Set The Timeout Time?
-You can give the variable process.env.timeOut a value in milliseconds. The default is 60000.
+You can give the variable process.env.timeOut a value in milliseconds. The default is 30000. Please use a higher value in queue mode.
 
 ## Disclaimer of Liability
 This repository was created purely for testing and training purposes. The user is responsible for any prohibited liability that may arise from its use.

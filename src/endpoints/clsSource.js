@@ -1,6 +1,6 @@
-const { debug } = require('puppeteer-core');
 const { debugLog, infoLog, warnLog, errorLog } = require('../module/logger');
 const { clickCheckboxViaCDP } = require('../module/clickCheckbox'); 
+const queue = require('../module/queue');
 
 const CHALLENGE_TITLES = ['Just a moment...',
   'Please Wait... | Cloudflare',
@@ -130,83 +130,86 @@ async function solveCloudflare(page) {
 
 
 function getSource({ url, proxy }) {
-  return new Promise(async (resolve, reject) => {
-    if (!url) return reject('Missing url parameter');
+  const executeRequest = () => {
+    return new Promise(async (resolve, reject) => {
+      if (!url) return reject('Missing url parameter');
 
-    const context = await global.browser
-      .createBrowserContext({
-        proxyServer: proxy ? `http://${proxy.host}:${proxy.port}` : undefined,
-      })
-      .catch(() => null);
+      const context = await global.browser
+        .createBrowserContext({
+          proxyServer: proxy ? `http://${proxy.host}:${proxy.port}` : undefined,
+        })
+        .catch(() => null);
 
-    if (!context) return reject('Failed to create browser context');
+      if (!context) return reject('Failed to create browser context');
 
-    let isResolved = false;
+      let isResolved = false;
 
-    const cl = setTimeout(async () => {
-      if (!isResolved) {
-        await context.close();
-        reject('Timeout Error');
-      }
-    }, global.timeOut || 45000);
+      const cl = setTimeout(async () => {
+        if (!isResolved) {
+          await context.close();
+          reject('Timeout Error');
+        }
+      }, global.timeOut || 45000);
 
-    infoLog(`[app] Request received for ${url} ...`)
-    try {
-      const page = await context.newPage();
+      infoLog(`[app] Request received for ${url} ...`)
+      try {
+        const page = await context.newPage();
 
-      if (proxy?.username && proxy?.password)
-        await page.authenticate({
-          username: proxy.username,
-          password: proxy.password,
+        if (proxy?.username && proxy?.password)
+          await page.authenticate({
+            username: proxy.username,
+            password: proxy.password,
+          });
+
+        await page.setRequestInterception(true);
+        page.on('request', async (request) => request.continue());
+
+        let responseReceived = false;
+        page.on('response', async (res) => {
+          try {
+            if (
+              [200, 302].includes(res.status()) &&
+              [url, url + '/'].includes(res.url()) &&
+              !responseReceived
+            ) {
+              responseReceived = true;
+              // Headers captured for logging/debugging only (not returned)
+              let headers = await res.request().headers();
+              debugLog('[app] Response captured:', res.status(), res.url());
+            }
+          } catch (e) {}
         });
 
-      await page.setRequestInterception(true);
-      page.on('request', async (request) => request.continue());
+        // Navigate to target
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      let responseReceived = false;
-      page.on('response', async (res) => {
-        try {
-          if (
-            [200, 302].includes(res.status()) &&
-            [url, url + '/'].includes(res.url()) &&
-            !responseReceived
-          ) {
-            responseReceived = true;
-            // Headers captured for logging/debugging only (not returned)
-            let headers = await res.request().headers();
-            debugLog('[app] Response captured:', res.status(), res.url());
-          }
-        } catch (e) {}
-      });
+        await solveCloudflare(page).catch((err) => {
+          warnLog('[solveCloudflare] Solver error:', err?.message || err);
+        });
 
-      // Navigate to target
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Small buffer for dynamic content to render
+        //await new Promise(r => setTimeout(r, 1500));
 
-      await solveCloudflare(page).catch((err) => {
-        warnLog('[solveCloudflare] Solver error:', err?.message || err);
-      });
+        // Return page content instead of headers/cookies
+        const html = await page.content();
 
-      // Small buffer for dynamic content to render
-      //await new Promise(r => setTimeout(r, 1500));
-
-      // Return page content instead of headers/cookies
-      const html = await page.content();
-
-      await context.close();
-      isResolved = true;
-      clearTimeout(cl);
-      
-      infoLog('[app] ✓ Page content extracted successfully.');
-      resolve(html);
-
-    } catch (e) {
-      if (!isResolved) {
         await context.close();
+        isResolved = true;
         clearTimeout(cl);
-        reject(e.message);
+        
+        infoLog('[app] ✓ Page content extracted successfully.');
+        resolve(html);
+
+      } catch (e) {
+        if (!isResolved) {
+          await context.close();
+          clearTimeout(cl);
+          reject(e.message);
+        }
       }
-    }
-  });
+    });
+  };  
+  return queue.enqueue(executeRequest, 'clsSource');
 }
 
 module.exports = getSource;

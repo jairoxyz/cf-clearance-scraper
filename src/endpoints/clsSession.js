@@ -1,6 +1,6 @@
-const { debug } = require('puppeteer-core');
 const { debugLog, infoLog, warnLog, errorLog } = require('../module/logger');
 const { clickCheckboxViaCDP } = require('../module/clickCheckbox'); 
+const queue = require('../module/queue');
 
 const CHALLENGE_TITLES = ['Just a moment...',
   'Please Wait... | Cloudflare',
@@ -129,86 +129,94 @@ async function findAcceptLanguage(page) {
 }
 
 function getSource({ url, proxy }) {
-  return new Promise(async (resolve, reject) => {
-    if (!url) return reject('Missing url parameter');
+  // ── Wrap entire original logic in executeRequest ──
+  const executeRequest = () => {
 
-    const context = await global.browser
-      .createBrowserContext({
-        proxyServer: proxy ? `http://${proxy.host}:${proxy.port}` : undefined,
-      })
-      .catch(() => null);
+    return new Promise(async (resolve, reject) => {
+      if (!url) return reject('Missing url parameter');
 
-    if (!context) return reject('Failed to create browser context');
+      const context = await global.browser
+        .createBrowserContext({
+          proxyServer: proxy ? `http://${proxy.host}:${proxy.port}` : undefined,
+        })
+        .catch(() => null);
 
-    let isResolved = false;
+      if (!context) return reject('Failed to create browser context');
 
-    const cl = setTimeout(async () => {
-      if (!isResolved) {
-        await context.close();
-        reject('Timeout Error');
-      }
-    }, global.timeOut || 45000);
+      let isResolved = false;
 
-    infoLog(`[app] Request received for ${url} ...`)
-    try {
-      const page = await context.newPage();
+      const cl = setTimeout(async () => {
+        if (!isResolved) {
+          await context.close();
+          reject('Timeout Error');
+        }
+      }, global.timeOut || 45000);
 
-      if (proxy?.username && proxy?.password)
-        await page.authenticate({
-          username: proxy.username,
-          password: proxy.password,
+      infoLog(`[app] Request received for ${url} ...`);
+
+      try {
+        const page = await context.newPage();
+
+        if (proxy?.username && proxy?.password)
+          await page.authenticate({
+            username: proxy.username,
+            password: proxy.password,
+          });
+
+        let acceptLanguage = await findAcceptLanguage(page);
+
+        await page.setRequestInterception(true);
+        page.on('request', async (request) => request.continue());
+
+        let capturedHeaders = null;
+        page.on('response', async (res) => {
+          try {
+            if (
+              [200, 302].includes(res.status()) &&
+              [url, url + '/'].includes(res.url()) &&
+              capturedHeaders === null
+            ) {
+              let headers = await res.request().headers();
+              delete headers['content-type'];
+              delete headers['accept-encoding'];
+              delete headers['accept'];
+              delete headers['content-length'];
+              headers['accept-language'] = acceptLanguage;
+              capturedHeaders = headers;
+            }
+          } catch (e) {}
         });
 
-      let acceptLanguage = await findAcceptLanguage(page);
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      await page.setRequestInterception(true);
-      page.on('request', async (request) => request.continue());
+        await solveCloudflare(page).catch((err) => {
+          warnLog('[solveCloudflare] Solver error:', err?.message || err);
+        });
 
-      let capturedHeaders = null;
-      page.on('response', async (res) => {
-        try {
-          if (
-            [200, 302].includes(res.status()) &&
-            [url, url + '/'].includes(res.url()) &&
-            capturedHeaders === null
-          ) {
-            let headers = await res.request().headers();
-            delete headers['content-type'];
-            delete headers['accept-encoding'];
-            delete headers['accept'];
-            delete headers['content-length'];
-            headers['accept-language'] = acceptLanguage;
-            capturedHeaders = headers;
-          }
-        } catch (e) {}
-      });
+        if (!capturedHeaders) {
+          capturedHeaders = { 'accept-language': acceptLanguage };
+        }
 
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
+        const cookies = await page.cookies();
 
-      await solveCloudflare(page).catch((err) => {
-        warnLog('[solveCloudflare] Solver error:', err?.message || err);
-      });
-
-      if (!capturedHeaders) {
-        capturedHeaders = { 'accept-language': acceptLanguage };
-      }
-
-      const cookies = await page.cookies();
-
-      await context.close();
-      isResolved = true;
-      clearTimeout(cl);
-      infoLog('[app] ✓ Session data extracted successfully.');
-      resolve({ cookies, headers: capturedHeaders });
-
-    } catch (e) {
-      if (!isResolved) {
         await context.close();
+        isResolved = true;
         clearTimeout(cl);
-        reject(e.message);
+        infoLog('[app] ✓ Session data extracted successfully.');
+        resolve({ cookies, headers: capturedHeaders });
+
+      } catch (e) {
+        if (!isResolved) {
+          await context.close();
+          clearTimeout(cl);
+          reject(e.message);
+        }
       }
-    }
-  });
+    });
+  };
+
+  // ── Return queued or immediate execution ──
+  return queue.enqueue(executeRequest, 'clsSession');
 }
 
 module.exports = getSource;

@@ -16,3 +16,4 @@ services:
       TZ: Europe/London
       browserLimit: 20
       timeOut: 60000
+      CLOAKBROWSER_LICENSE_KEY:

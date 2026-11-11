@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
         {
             "type": "node",
             "request": "launch",
@@ -14,7 +15,8 @@
             ],
             "program": "${workspaceFolder}\\src\\index.js",            
             "env": {
-                "LOG": "1"
+                "LOG": "1",
+                //"CLOAKBROWSER_LICENSE_KEY": "cb_f187741b875b46378c5c24d9823c88c8"
             }
 
         }

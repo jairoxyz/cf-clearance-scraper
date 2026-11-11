@@ -6,6 +6,13 @@ const authToken = process.env.authToken || null
 const cors = require('cors')
 const reqValidate = require('./module/reqValidate')
 const { debugLog, infoLog, warnLog, errorLog } = require('./module/logger');
+const queue = require('./module/queue');
+
+global.DEFAULT_UA =
+  process.env.UPSTREAM_UA ||
+  (process.platform === 'linux'
+    ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
+    : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36');
 
 
 global.browserLength = 0
@@ -31,6 +38,9 @@ const { createBrowserFacade, initAtStartup, shutdown } = require('./module/creat
         onDec: () => { global.browserLength = Math.max(0, global.browserLength - 1); },
         getCount: () => global.browserLength,
     });
+
+    // Initialize queue AFTER browser is connected
+    await queue.init(global.browser);
 
     const getSource = require('./endpoints/getSource')
     const solveTurnstileMin = require('./endpoints/solveTurnstile.min')

@@ -159,9 +159,12 @@ function createBrowserFacade(hooks = {}) {
         '--disable-dev-shm-usage',
         '--enable-blink-features=FakeShadowRoot',
         `--fingerprint=${fingerprintSeed}`,
+        '--fingerprint-noise=false', // workaround for https://github.com/CloakHQ/CloakBrowser/issues/646
         '--use-gl=angle',          // Force ANGLE graphics backend
         '--use-angle=swiftshader', // Use SwiftShader for software WebGL rendering
         '--enable-webgl',
+        '--disable-gpu-rasterization', // Speeds up software rendering in SwiftShader
+        '--disable-gpu-driver-bug-workarounds', // Reduces WebGL initialization overhead
       ];
 
       const proxyServer = normalizeProxyServer(options.proxyServer);
